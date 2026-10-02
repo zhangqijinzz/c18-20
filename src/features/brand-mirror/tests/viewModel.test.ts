@@ -28,6 +28,49 @@ describe('BrandMirrorViewModel', () => {
     expect(repository.document?.tokens.primary).toBe('#123456')
   })
 
+  it('updates spacing as one proportional group and records the same values for export', () => {
+    const repository = new MemoryRepository()
+    const exporter = new MemoryExporter()
+    const viewModel = new BrandMirrorViewModel(repository, exporter)
+    viewModel.initialize()
+    viewModel.scaleScaleGroup('spacingScale', 'up')
+    expect(viewModel.getSnapshot().tokens.spacingScale).toEqual([5, 10, 15, 25, 40])
+    expect(repository.document?.tokens.spacingScale).toEqual([5, 10, 15, 25, 40])
+    viewModel.exportBrandGuidelines()
+    expect(exporter.received).toContain('`spacing.1`: 5px')
+    expect(exporter.received).toContain('`spacing.5`: 40px')
+  })
+
+  it('rebases the font scale from a selected level and preserves its order', () => {
+    const repository = new MemoryRepository()
+    const viewModel = new BrandMirrorViewModel(repository)
+    viewModel.initialize()
+    viewModel.rebaseScaleGroup('typeScale', 2, 20)
+    const values = viewModel.getSnapshot().tokens.typeScale
+    expect(values).toEqual([15, 18, 20, 25, 35, 50])
+    values.forEach((value, index) => index > 0 && expect(value).toBeGreaterThan(values[index - 1]))
+  })
+
+  it('shifts spacing by one step and reports which level is bounded', () => {
+    const repository = new MemoryRepository()
+    const viewModel = new BrandMirrorViewModel(repository)
+    viewModel.initialize()
+    viewModel.shiftScaleGroup('spacingScale', 'down')
+    expect(viewModel.getSnapshot().tokens.spacingScale).toEqual([2, 6, 10, 18, 30])
+    expect(viewModel.getSnapshot().message).toContain('第1级')
+    expect(viewModel.getSnapshot().message).toContain('下限 2px')
+    expect(viewModel.getSnapshot().scaleNotice?.limitedValues[0]).toMatchObject({ index: 0, actual: 2 })
+  })
+
+  it('saves scaled values in versions', () => {
+    const repository = new MemoryRepository()
+    const viewModel = new BrandMirrorViewModel(repository)
+    viewModel.initialize()
+    viewModel.scaleScaleGroup('typeScale', 'up')
+    viewModel.saveVersion()
+    expect(viewModel.getSnapshot().versions[0].tokens.typeScale).toEqual(viewModel.getSnapshot().tokens.typeScale)
+  })
+
   it('saves two versions and enters comparison mode', () => {
     const repository = new MemoryRepository()
     const viewModel = new BrandMirrorViewModel(repository)

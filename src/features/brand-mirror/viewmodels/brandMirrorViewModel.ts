@@ -1,7 +1,7 @@
-import { clampTokenValues, cloneTokens, contrastRatio, normalizeColor, themeTokens, validateTokens } from '../domain/brandRules'
+import { SCALE_LIMITS, cloneTokens, contrastRatio, normalizeColor, rebaseScaleGroup, scaleGroupByFactor, shiftScaleGroup, themeTokens, updateSingleScaleValue, validateTokens } from '../domain/brandRules'
 import type { BrandRepository } from '../repositories/brandRepository'
 import type { BrandGuidelinesExporter } from '../services/exportService'
-import { INITIAL_TOKENS, type BrandDocument, type BrandMirrorSnapshot, type BrandTheme, type SavedVersion } from '../models/brandMirrorModels'
+import { INITIAL_TOKENS, type BrandDocument, type BrandMirrorSnapshot, type ScaleAdjustmentNotice, type ScaleField, type ScaleLimitedValue, type BrandTheme, type SavedVersion } from '../models/brandMirrorModels'
 
 type Listener = () => void
 
@@ -44,10 +44,40 @@ export class BrandMirrorViewModel {
     this.update({ tokens: { ...this.snapshot.tokens, [field]: color } }, '令牌已更新')
   }
 
-  updateScale(field: 'radiusScale' | 'spacingScale' | 'typeScale', index: number, value: number): void {
-    const values = [...this.snapshot.tokens[field]]
-    values[index] = Number.isFinite(value) ? value : values[index]
-    this.update({ tokens: clampTokenValues({ ...this.snapshot.tokens, [field]: values }) }, '令牌已更新')
+  updateScale(field: ScaleField, index: number, value: number): void {
+    const result = updateSingleScaleValue(this.snapshot.tokens, field, index, value)
+    if (!result) return
+    const scaleNotice = result.limitedValue
+      ? { field, limitedValues: [result.limitedValue] }
+      : null
+    this.update({ tokens: result.tokens }, result.limitedValue ? this.limitMessage(field, [result.limitedValue]) : '令牌已更新', 'editing', scaleNotice)
+  }
+
+  scaleScaleGroup(field: ScaleField, direction: 'up' | 'down'): void {
+    const factor = SCALE_LIMITS[field].scaleFactor ** (direction === 'up' ? 1 : -1)
+    const result = scaleGroupByFactor(this.snapshot.tokens[field], field, factor, SCALE_LIMITS[field].defaultBaseIndex)
+    if (!result) return
+    const label = direction === 'up' ? '放大一档' : '缩小一档'
+    this.applyGroupResult(field, result.values, result.limitedValues, `${SCALE_LIMITS[field].label}已${label}`)
+  }
+
+  shiftScaleGroup(field: ScaleField, direction: 'up' | 'down'): void {
+    const delta = SCALE_LIMITS[field].step * (direction === 'up' ? 1 : -1)
+    const result = shiftScaleGroup(this.snapshot.tokens[field], field, delta)
+    if (!result) return
+    const label = direction === 'up' ? '增加一档' : '减少一档'
+    this.applyGroupResult(field, result.values, result.limitedValues, `${SCALE_LIMITS[field].label}已${label}`)
+  }
+
+  rebaseScaleGroup(field: ScaleField, baseIndex: number, baseValue: number): void {
+    const result = rebaseScaleGroup(this.snapshot.tokens[field], field, baseIndex, baseValue)
+    if (!result) {
+      this.snapshot = { ...this.snapshot, status: 'error', message: '请输入有效的基准数值' }
+      this.emit()
+      return
+    }
+    const baseText = `${SCALE_LIMITS[field].label} 第 ${baseIndex + 1} 级基准为 ${result.actualBase}px`
+    this.applyGroupResult(field, result.values, result.limitedValues, baseText)
   }
 
   reset(): void {
@@ -87,9 +117,15 @@ export class BrandMirrorViewModel {
     this.emit()
   }
 
-  private update(partial: Partial<Pick<BrandDocument, 'tokens' | 'theme'>>, message: string): void {
+  private applyGroupResult(field: ScaleField, values: number[], limitedValues: ScaleLimitedValue[], baseMessage: string): void {
+    const message = limitedValues.length ? this.limitMessage(field, limitedValues) : baseMessage
+    const scaleNotice = limitedValues.length ? { field, limitedValues } : null
+    this.update({ tokens: { ...this.snapshot.tokens, [field]: values } }, message, 'editing', scaleNotice)
+  }
+
+  private update(partial: Partial<Pick<BrandDocument, 'tokens' | 'theme'>>, message: string, status: BrandMirrorSnapshot['status'] = 'editing', scaleNotice: ScaleAdjustmentNotice | null = null): void {
     const tokens = partial.tokens ?? this.snapshot.tokens
-    this.snapshot = this.makeSnapshot({ tokens, theme: partial.theme ?? this.snapshot.theme, versions: this.snapshot.versions }, message, 'editing')
+    this.snapshot = this.makeSnapshot({ tokens, theme: partial.theme ?? this.snapshot.theme, versions: this.snapshot.versions }, message, status, scaleNotice)
     this.persistCurrent()
   }
 
@@ -112,10 +148,20 @@ export class BrandMirrorViewModel {
     this.emit()
   }
 
-  private makeSnapshot(document: Omit<BrandDocument, 'version'>, message = '', status: BrandMirrorSnapshot['status'] = 'ready'): BrandMirrorSnapshot {
+  private makeSnapshot(document: Omit<BrandDocument, 'version'>, message = '', status: BrandMirrorSnapshot['status'] = 'ready', scaleNotice: ScaleAdjustmentNotice | null = null): BrandMirrorSnapshot {
     const ratio = contrastRatio(document.tokens.primary, document.tokens.secondary)
     const latestVersion = document.versions[document.versions.length - 1]
-    return { status, tokens: cloneTokens(document.tokens), theme: document.theme, versions: document.versions, compareMode: false, activeVersionId: latestVersion?.id ?? null, contrastRatio: ratio, contrastWarning: ratio < 3, message }
+    return { status, tokens: cloneTokens(document.tokens), theme: document.theme, versions: document.versions, compareMode: false, activeVersionId: latestVersion?.id ?? null, contrastRatio: ratio, contrastWarning: ratio < 3, message, scaleNotice }
+  }
+
+  private limitMessage(field: ScaleField, limitedValues: ScaleLimitedValue[]): string {
+    const limit = SCALE_LIMITS[field]
+    const levels = limitedValues.map((value) => `第${value.index + 1}级`).join('、')
+    const hasMin = limitedValues.some((value) => value.reason === 'min')
+    const hasMax = limitedValues.some((value) => value.reason === 'max')
+    const hasHierarchy = limitedValues.some((value) => value.reason === 'hierarchy')
+    const boundary = hasMin && hasMax ? `${limit.min}–${limit.max}px ` : hasMin ? `下限 ${limit.min}px ` : hasMax ? `上限 ${limit.max}px ` : ''
+    return `${limit.label}${levels}已受${boundary}${hasHierarchy ? '层级' : ''}限制，层级顺序保持不变`
   }
 
   private emit(): void {

@@ -1,5 +1,20 @@
 export type BrandTheme = 'studio' | 'editorial' | 'night'
 export type MirrorStatus = 'loading' | 'ready' | 'editing' | 'error'
+export type ScaleField = 'radiusScale' | 'spacingScale' | 'typeScale'
+export type BulkScaleField = Extract<ScaleField, 'spacingScale' | 'typeScale'>
+export type ScaleLimitReason = 'min' | 'max' | 'hierarchy'
+
+export interface ScaleLimitedValue {
+  index: number
+  requested: number
+  actual: number
+  reason: ScaleLimitReason
+}
+
+export interface ScaleAdjustmentNotice {
+  field: ScaleField
+  limitedValues: ScaleLimitedValue[]
+}
 
 export interface BrandTokens {
   primary: string
@@ -33,6 +48,7 @@ export interface BrandMirrorSnapshot {
   contrastRatio: number
   contrastWarning: boolean
   message: string
+  scaleNotice: ScaleAdjustmentNotice | null
 }
 
 export const INITIAL_TOKENS: BrandTokens = {
