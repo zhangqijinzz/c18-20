@@ -53,6 +53,20 @@ h2 { margin-top: 5px; font-size: 19px; letter-spacing: -.04em; }
 .scale-inputs input { margin-top: 5px; width: 100%; padding: 6px 1px; color: #4c5665; background: #fff; border: 1px solid #e3e6e9; border-radius: 6px; outline: 0; text-align: center; font-family: 'DM Mono', monospace; font-size: 10px; }
 .scale-inputs input:focus, .color-input:focus-within { border-color: #f15a47; box-shadow: 0 0 0 3px #f15a4717; }
 .panel-footer { margin-top: 24px; color: #a5abb4; display: flex; gap: 9px; align-items: center; font-size: 9px; }
+.group-tabs { margin: 0 0 4px; }
+.adjust-row { margin-top: 10px; display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.adjust-name { flex: 0 0 auto; color: #737b87; font-size: 10px; font-weight: 600; }
+.adjust-actions { display: flex; flex-wrap: wrap; justify-content: flex-end; align-items: center; gap: 4px; }
+.adjust-actions button { padding: 5px 7px; color: #6c7582; background: #fff; border: 1px solid #e1e4e8; border-radius: 6px; font-family: 'DM Mono', monospace; font-size: 9px; }
+.adjust-actions button:hover { color: #f15a47; border-color: #f15a47; }
+.adjust-actions .adjust-apply { color: #fff; background: #24324a; border-color: #24324a; }
+.adjust-actions .adjust-apply:hover { color: #fff; background: #1b2739; }
+.adjust-actions input { width: 42px; padding: 5px 4px; color: #4c5665; background: #fff; border: 1px solid #e3e6e9; border-radius: 6px; outline: 0; text-align: center; font-family: 'DM Mono', monospace; font-size: 9px; }
+.adjust-actions input:focus, .adjust-actions select:focus { border-color: #f15a47; box-shadow: 0 0 0 3px #f15a4717; }
+.adjust-actions select { max-width: 104px; padding: 4px 2px; color: #4c5665; background: #fff; border: 1px solid #e3e6e9; border-radius: 6px; outline: 0; font-size: 9px; }
+.adjust-unit { color: #a0a6af; font-size: 9px; }
+.adjust-notice { margin-top: 13px; padding: 9px 10px; color: #a36c30; background: #fff4df; border-radius: 7px; display: flex; gap: 8px; align-items: flex-start; font-size: 9px; line-height: 1.5; }
+.adjust-notice-icon { flex: 0 0 auto; }
 .token-explorer { margin-top: 22px; padding-bottom: 0; border-bottom: 0; }
 .token-search { height: 32px; padding: 0 9px; color: #a6adb6; background: #fff; border: 1px solid #e1e4e8; border-radius: 7px; display: flex; align-items: center; gap: 7px; }
 .token-search:focus-within { border-color: #f15a47; box-shadow: 0 0 0 3px #f15a4717; }

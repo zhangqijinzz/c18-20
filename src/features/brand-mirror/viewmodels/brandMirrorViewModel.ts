@@ -1,9 +1,27 @@
 import { clampTokenValues, cloneTokens, contrastRatio, normalizeColor, themeTokens, validateTokens } from '../domain/brandRules'
+import { nudgeGroupValues, recalcGroupFromBase, scaleGroupValues, SCALE_LABELS, SCALE_LIMITS, SCALE_STEPS, type ClampedLevel, type ScaleAdjustment, type ScaleField } from '../domain/scaleOps'
 import type { BrandRepository } from '../repositories/brandRepository'
 import type { BrandGuidelinesExporter } from '../services/exportService'
 import { INITIAL_TOKENS, type BrandDocument, type BrandMirrorSnapshot, type BrandTheme, type SavedVersion } from '../models/brandMirrorModels'
 
 type Listener = () => void
+
+function formatFactor(factor: number): string {
+  return String(Math.round(factor * 1000) / 1000)
+}
+
+function buildClampNotice(field: ScaleField, clamped: ClampedLevel[]): string | null {
+  if (clamped.length === 0) return null
+  const label = SCALE_LABELS[field]
+  const limit = SCALE_LIMITS[field]
+  const names = (bound: ClampedLevel['bound']) => clamped.filter((level) => level.bound === bound).map((level) => `${label} ${level.index + 1}`).join('、')
+  const parts: string[] = []
+  const atMin = names('min')
+  const atMax = names('max')
+  if (atMin) parts.push(`${atMin} 已按下限 ${limit.min}px`)
+  if (atMax) parts.push(`${atMax} 已按上限 ${limit.max}px`)
+  return `${parts.join('；')}，其余层级按顺序排开`
+}
 
 export class BrandMirrorViewModel {
   private snapshot: BrandMirrorSnapshot = this.makeSnapshot({ tokens: INITIAL_TOKENS, theme: 'studio', versions: [] })
@@ -50,6 +68,30 @@ export class BrandMirrorViewModel {
     this.update({ tokens: clampTokenValues({ ...this.snapshot.tokens, [field]: values }) }, '令牌已更新')
   }
 
+  scaleGroup(field: ScaleField, factor: number): void {
+    if (!Number.isFinite(factor) || factor <= 0) {
+      this.fail('缩放倍数需大于 0')
+      return
+    }
+    const adjustment = scaleGroupValues(this.snapshot.tokens[field], field, factor)
+    this.applyGroupAdjustment(field, adjustment, `${SCALE_LABELS[field]}整组缩放 ×${formatFactor(factor)}`)
+  }
+
+  recalcGroupFromBase(field: ScaleField, anchorIndex: number, baseValue: number): void {
+    const adjustment = recalcGroupFromBase(this.snapshot.tokens[field], field, anchorIndex, baseValue)
+    if (!adjustment) {
+      this.fail('基准值无效，无法重算整组')
+      return
+    }
+    this.applyGroupAdjustment(field, adjustment, `${SCALE_LABELS[field]}按第 ${anchorIndex + 1} 级 = ${Math.round(baseValue)}px 重算`)
+  }
+
+  nudgeGroup(field: ScaleField, direction: 1 | -1): void {
+    const step = SCALE_STEPS[field]
+    const adjustment = nudgeGroupValues(this.snapshot.tokens[field], field, direction)
+    this.applyGroupAdjustment(field, adjustment, `${SCALE_LABELS[field]}整组 ${direction > 0 ? '+' : '−'}${step}px`)
+  }
+
   reset(): void {
     this.update({ tokens: cloneTokens(INITIAL_TOKENS), theme: 'studio' }, '已恢复默认令牌')
   }
@@ -87,9 +129,21 @@ export class BrandMirrorViewModel {
     this.emit()
   }
 
-  private update(partial: Partial<Pick<BrandDocument, 'tokens' | 'theme'>>, message: string): void {
+  private applyGroupAdjustment(field: ScaleField, adjustment: ScaleAdjustment, action: string): void {
+    const tokens = { ...this.snapshot.tokens, [field]: adjustment.values }
+    const notice = buildClampNotice(field, adjustment.clamped)
+    const message = notice ? `${action} · ${adjustment.clamped.length} 个层级触及边界` : `${action} · 层级关系保持不变`
+    this.update({ tokens }, message, notice)
+  }
+
+  private fail(message: string): void {
+    this.snapshot = { ...this.snapshot, status: 'error', message }
+    this.emit()
+  }
+
+  private update(partial: Partial<Pick<BrandDocument, 'tokens' | 'theme'>>, message: string, adjustmentNotice: string | null = null): void {
     const tokens = partial.tokens ?? this.snapshot.tokens
-    this.snapshot = this.makeSnapshot({ tokens, theme: partial.theme ?? this.snapshot.theme, versions: this.snapshot.versions }, message, 'editing')
+    this.snapshot = this.makeSnapshot({ tokens, theme: partial.theme ?? this.snapshot.theme, versions: this.snapshot.versions }, message, 'editing', adjustmentNotice)
     this.persistCurrent()
   }
 
@@ -112,10 +166,10 @@ export class BrandMirrorViewModel {
     this.emit()
   }
 
-  private makeSnapshot(document: Omit<BrandDocument, 'version'>, message = '', status: BrandMirrorSnapshot['status'] = 'ready'): BrandMirrorSnapshot {
+  private makeSnapshot(document: Omit<BrandDocument, 'version'>, message = '', status: BrandMirrorSnapshot['status'] = 'ready', adjustmentNotice: string | null = null): BrandMirrorSnapshot {
     const ratio = contrastRatio(document.tokens.primary, document.tokens.secondary)
     const latestVersion = document.versions[document.versions.length - 1]
-    return { status, tokens: cloneTokens(document.tokens), theme: document.theme, versions: document.versions, compareMode: false, activeVersionId: latestVersion?.id ?? null, contrastRatio: ratio, contrastWarning: ratio < 3, message }
+    return { status, tokens: cloneTokens(document.tokens), theme: document.theme, versions: document.versions, compareMode: false, activeVersionId: latestVersion?.id ?? null, contrastRatio: ratio, contrastWarning: ratio < 3, message, adjustmentNotice }
   }
 
   private emit(): void {

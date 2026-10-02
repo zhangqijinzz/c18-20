@@ -33,6 +33,7 @@ export interface BrandMirrorSnapshot {
   contrastRatio: number
   contrastWarning: boolean
   message: string
+  adjustmentNotice: string | null
 }
 
 export const INITIAL_TOKENS: BrandTokens = {

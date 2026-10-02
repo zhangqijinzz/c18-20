@@ -1,5 +1,6 @@
 import type { BrandTheme, BrandTokens } from '../models/brandMirrorModels'
 import { INITIAL_TOKENS, THEME_PRESETS } from '../models/brandMirrorModels'
+import { clampScaleValue, SCALE_LIMITS } from './scaleOps'
 
 const HEX_COLOR = /^#[0-9A-F]{6}$/i
 
@@ -19,9 +20,9 @@ export function normalizeColor(value: string): string {
 export function clampTokenValues(tokens: BrandTokens): BrandTokens {
   return {
     ...cloneTokens(tokens),
-    radiusScale: tokens.radiusScale.map((value) => Math.min(40, Math.max(0, Math.round(value)))),
-    spacingScale: tokens.spacingScale.map((value) => Math.min(64, Math.max(2, Math.round(value)))),
-    typeScale: tokens.typeScale.map((value) => Math.min(72, Math.max(10, Math.round(value)))),
+    radiusScale: tokens.radiusScale.map((value) => clampScaleValue(value, SCALE_LIMITS.radiusScale)),
+    spacingScale: tokens.spacingScale.map((value) => clampScaleValue(value, SCALE_LIMITS.spacingScale)),
+    typeScale: tokens.typeScale.map((value) => clampScaleValue(value, SCALE_LIMITS.typeScale)),
   }
 }
 

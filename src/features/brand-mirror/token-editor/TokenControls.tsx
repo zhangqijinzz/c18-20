@@ -1,10 +1,15 @@
 import type { BrandMirrorSnapshot, BrandTheme } from '../models/brandMirrorModels'
+import type { ScaleField } from '../domain/scaleOps'
+import { GroupScaleControls } from './GroupScaleControls'
 
 interface TokenControlsProps {
   snapshot: BrandMirrorSnapshot
   onThemeChange: (theme: BrandTheme) => void
   onColorChange: (field: 'primary' | 'secondary', value: string) => void
   onScaleChange: (field: 'radiusScale' | 'spacingScale' | 'typeScale', index: number, value: number) => void
+  onScaleGroup: (field: ScaleField, factor: number) => void
+  onRecalcGroup: (field: ScaleField, anchorIndex: number, baseValue: number) => void
+  onNudgeGroup: (field: ScaleField, direction: 1 | -1) => void
   onReset: () => void
 }
 
@@ -14,7 +19,7 @@ const themes: { id: BrandTheme; label: string; note: string }[] = [
   { id: 'night', label: 'Night signal', note: '锐利 · 数字' },
 ]
 
-export function TokenControls({ snapshot, onThemeChange, onColorChange, onScaleChange, onReset }: TokenControlsProps) {
+export function TokenControls({ snapshot, onThemeChange, onColorChange, onScaleChange, onScaleGroup, onRecalcGroup, onNudgeGroup, onReset }: TokenControlsProps) {
   return (
     <aside className="control-panel">
       <div className="panel-heading">
@@ -49,6 +54,8 @@ export function TokenControls({ snapshot, onThemeChange, onColorChange, onScaleC
           <span>对比度 <strong>{snapshot.contrastRatio.toFixed(1)}:1</strong> · {snapshot.contrastWarning ? '建议提高对比度' : '适合界面使用'}</span>
         </div>
       </section>
+
+      <GroupScaleControls snapshot={snapshot} onScaleGroup={onScaleGroup} onRecalcGroup={onRecalcGroup} onNudgeGroup={onNudgeGroup} />
 
       <ScaleControl label="圆角尺度" hint="px" values={snapshot.tokens.radiusScale} field="radiusScale" onChange={onScaleChange} />
       <ScaleControl label="间距体系" hint="px" values={snapshot.tokens.spacingScale} field="spacingScale" onChange={onScaleChange} />
